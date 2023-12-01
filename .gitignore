@@ -3,6 +3,8 @@ vendor/
 # Builds of gulp tool
 public/build/**
 
+users-regitrados-en-uptask.txt
+
 # Logs
 logs
 *.log
