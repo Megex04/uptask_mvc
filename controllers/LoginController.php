@@ -8,14 +8,48 @@ use MVC\Router;
 class LoginController {
 
     public static function login(Router $router) {
-
-        if($_SERVER['REQUEST_METHOD'] === 'POST') {
         
+        $alertas = [];
+        if($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $auth = new Usuario($_POST);
+            $alertas = $auth->validarLogin();
+            if(empty($alertas)) {
+                // verificar que el user exista
+                $auth = Usuario::where('email', $auth->email);
+                
+                if(!$auth) {
+                    Usuario::setAlerta('error', 'El Usuario no existe');
+                } else {
+                    if($auth instanceof Usuario) {
+                        if(!$auth->confirmado) {
+                            Usuario::setAlerta('error', 'El Usuario no esta confirmado');
+                        } else {
+                            if(password_verify($_POST['password'], $auth->password)) {
+                                // INICIA LA SESION
+                                session_start();
+                                $_SESSION['id'] = $auth->id;
+                                $_SESSION['nombre'] = $auth->nombre;
+                                $_SESSION['email'] = $auth->email;
+                                $_SESSION['login'] = true;
+                                
+                                header('Location: /proyectos');
+
+                            } else {
+                                Usuario::setAlerta('error', 'Password incorrecto');
+                            }
+                        }
+                        
+                    }
+                }
+            
+            }
         }
+        $alertas = Usuario::getAlertas();
 
         // Render a la vista
         $router->render('auth/login', [
-            'titulo' => 'Iniciar Sesión'
+            'titulo' => 'Iniciar Sesión',
+            'alertas' => $alertas
         ]);
     }
 
@@ -73,24 +107,89 @@ class LoginController {
     }
 
     public static function olvide(Router $router) {
+        $alertas = [];
         if($_SERVER['REQUEST_METHOD'] === 'POST') {
-        
+            
+            $usuario = new Usuario($_POST);
+            $alertas = $usuario->validarEmail();
+
+            if(empty($alertas)) {
+                // buscar el usuario
+                $usuario = Usuario::where('email', $usuario->email);
+                
+                if($usuario && $usuario instanceof Usuario) {
+                    // encontro al usuario
+                    if($usuario->confirmado) {
+                        // valida si esta confirmado
+                        // generar token
+                        $usuario->crearToken();
+                        unset($usuario->password2);
+                        // actualizar usuario
+                        $usuario->guardar();
+                        // ENVIAR EMAIL
+                        $email = new Email($usuario->email, $usuario->nombre, $usuario->token);
+                        $email->enviarInstrucciones();
+                        // imprimir la alerta
+                        Usuario::setAlerta('exito', 'Hemos enviado instrucciones a tu correo electronico');
+                    }
+
+                } else {
+                    Usuario::setAlerta('error', 'El usuario no existe o no esta confirmado');
+                }
+            }
         }
+        $alertas = Usuario::getAlertas();
 
         // Muestra la vista
         $router->render('auth/olvide', [
-            'titulo' => 'Olvide mi Password'
+            'titulo' => 'Olvide mi Password',
+            'alertas' => $alertas
         ]);
     }
 
     public static function reestablecer(Router $router) {
 
-        if($_SERVER['REQUEST_METHOD'] === 'POST') {
-        
+        $token = s($_GET['token']);
+        $mostrar = true;
+
+        if(!$token) header('Location: /');
+
+        // identificar al usuario por su token
+        $usuario = Usuario::where('token', $token);
+        if(empty($usuario)) {
+            Usuario::setAlerta('error', 'Token No valido');
+            $mostrar = false;
         }
+
+        if($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if($usuario instanceof Usuario) {
+                // añadir el nuevo password
+                $usuario->sincronizar($_POST);
+                // VALIDA EL PASSWORD
+                $usuario->validarPassword();
+
+                if(empty($alertas)) {
+                    // HASHEAR EL NUEVO PASSWORD
+                    $usuario->hashPassword();
+                    // eliminar el TOKEN
+                    $usuario->token = null;
+                    // guardar el usuario en la BD
+                    $resultado = $usuario->guardar();
+                    // redirect
+                    if($resultado) {
+                        header('Location: /');
+                    }
+                }
+            }
+             
+
+        }
+        $alertas = Usuario::getAlertas();
         // Muestra la vista
         $router->render('auth/reestablecer', [
-            'titulo' => 'Reestablecer Password'
+            'titulo' => 'Reestablecer Password',
+            'alertas' => $alertas,
+            'mostrar' => $mostrar
         ]);
     }
 
