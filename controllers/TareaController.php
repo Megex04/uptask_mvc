@@ -64,11 +64,69 @@ class TareaController {
     public static function actualizar() {
         if($_SERVER['REQUEST_METHOD'] == 'POST') {
         
+            // validar que el proyecto exista
+            $proyecto = Proyecto::where('url', $_POST['proyectoId']);
+
+            session_start();
+            if($proyecto instanceof Proyecto) {
+                if(!$proyecto || $proyecto->propietarioId !== $_SESSION['id']) {    
+                    $respuesta = [
+                        'tipo' => 'error',
+                        'mensaje' => 'Hubo un error al actualizar la tarea'
+                    ];
+                    echo json_encode($respuesta);
+                    return;
+                }
+                $tarea = new Tarea($_POST);
+                $tarea->proyectoId = $proyecto->id;
+
+                $resultado = $tarea->guardar();
+                if($resultado) {
+                    $respuesta = [
+                        'tipo' => 'exito',
+                        'id' => $tarea->id,
+                        'proyectoId' => $proyecto->id,
+                        'mensaje' => 'Tarea actualizada correctamente'
+                    ];
+                    echo json_encode(['respuesta' => $respuesta]);
+                }
+
+            } else {
+                $respuesta = [
+                    'tipo' => 'error',
+                    'mensaje' => 'Hubo un error interno en el servidor'
+                ];
+                echo json_encode($respuesta);
+                return;
+            }
         }
     }
     public static function eliminar() {
         if($_SERVER['REQUEST_METHOD'] == 'POST') {
         
+             // validar que el proyecto exista
+             $proyecto = Proyecto::where('url', $_POST['proyectoId']);
+
+             session_start();
+             if($proyecto instanceof Proyecto) {
+                 if(!$proyecto || $proyecto->propietarioId !== $_SESSION['id']) {    
+                     $respuesta = [
+                         'tipo' => 'error',
+                         'mensaje' => 'Hubo un error al actualizar la tarea'
+                     ];
+                     echo json_encode($respuesta);
+                     return;
+                 }
+            }
+            $tarea = new Tarea($_POST);
+            $resultado = $tarea->eliminar();
+
+            $result = [
+                'resultado' => $resultado,
+                'mensaje' => 'Tarea eliminada correctamente',
+                'tipo' => 'exito'
+            ];
+            echo json_encode($result);
         }
     }
 }
